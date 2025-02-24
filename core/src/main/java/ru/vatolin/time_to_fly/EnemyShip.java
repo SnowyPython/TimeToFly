@@ -2,8 +2,12 @@ package ru.vatolin.time_to_fly;
 
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Vector2;
 
 public class EnemyShip extends Ship {
+    Vector2 directionVector;
+    float timeSinceLastDirectionChange = 0;
+    float directionChangeFrequency = 0.75f;
     public EnemyShip(float movementSpeed, int shield, float xPosition, float yPosition, float width, float height,
                      float laserWidth, float laserHeight, float laserMovementSpeed, float timeBetweenShots,
                      TextureRegion shipTextureRegion,
@@ -12,6 +16,28 @@ public class EnemyShip extends Ship {
 
         super(movementSpeed, shield, xPosition, yPosition, width, height, laserWidth, laserHeight,
             laserMovementSpeed, timeBetweenShots, shipTextureRegion, shieldTextureRegion, laserTextureRegion);
+
+        directionVector = new Vector2(0, -1);
+    }
+
+    public Vector2 getDirectionVector() {
+        return directionVector;
+    }
+
+    private void randomizeDirectionVector() {
+        double bearing = TimeToFlyGame.random.nextDouble()*6.283125; //0 to 2*PI
+        directionVector.x = (float) Math.sin(bearing);
+        directionVector.y = (float) Math.cos(bearing);
+    }
+
+    @Override
+    public void update(float deltaTime) {
+        super.update(deltaTime);
+        timeSinceLastDirectionChange += deltaTime;
+        if (timeSinceLastDirectionChange > directionChangeFrequency) {
+            randomizeDirectionVector();
+            timeSinceLastDirectionChange -= directionChangeFrequency;
+        }
     }
 
     @Override
