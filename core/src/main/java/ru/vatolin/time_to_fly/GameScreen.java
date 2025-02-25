@@ -5,13 +5,16 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.ListIterator;
 
@@ -23,6 +26,7 @@ public class GameScreen implements Screen {
     //Graphics
     private SpriteBatch spriteBatch;
     private TextureAtlas textureAtlas;
+    private Texture explosionTexture;
     private TextureRegion[] backgrounds;
     private TextureRegion playerShipTextureRegion;
     private TextureRegion playerShieldTextureRegion;
@@ -35,17 +39,20 @@ public class GameScreen implements Screen {
     //private int backgroundOffSet;
     private float[] backgroundOffSets = {0, 0, 0, 0};
     private float backgroundMaxScrollingSpeed;
+    private float timeBetweenEnemySpawns = 1.5f;
+    private float enemySpawnTimer = 0;
 
     //worldParameters
     private final int WORLD_WIDTH = 72;
     private final int WORLD_HEIGHT = 128;
-    private final float TOUCH_MOVEMENT_THRESHOLD = 0.5f;
+    private final float TOUCH_MOVEMENT_THRESHOLD = 5f;
 
     //gameObjects
     private PlayerShip playerShip;
-    private EnemyShip enemyShip;
+    private LinkedList<EnemyShip> enemyShipList;
     private LinkedList<Laser> playerLaserList;
     private LinkedList<Laser> enemyLaserList;
+    private LinkedList<Explosion> explosionList;
 
     public GameScreen() {
         camera = new OrthographicCamera();
@@ -71,17 +78,17 @@ public class GameScreen implements Screen {
         enemyShieldTextureRegion.flip(false, true);
         enemyLaserTextureRegion = textureAtlas.findRegion("laserRed03");
 
+        explosionTexture = new Texture("explosion.png");
+
         //setup game objects
         playerShip = new PlayerShip(48, 3, WORLD_WIDTH / 2, WORLD_HEIGHT / 4,
             10, 10, 0.4f, 4, 45, 0.5f,
             playerShipTextureRegion, playerShieldTextureRegion, playerLaserTextureRegion);
 
-        enemyShip = new EnemyShip(40, 1, TimeToFlyGame.random.nextFloat() * (WORLD_WIDTH - 10) + 5, WORLD_HEIGHT - 5,
-            10, 10, 0.3f, 4, 40, 0.8f,
-            enemyShipTextureRegion, enemyShieldTextureRegion, enemyLaserTextureRegion);
-
+        enemyShipList = new LinkedList<>();
         playerLaserList = new LinkedList<>();
         enemyLaserList = new LinkedList<>();
+        explosionList = new LinkedList<>();
 
         spriteBatch = new SpriteBatch();
     }
@@ -90,17 +97,23 @@ public class GameScreen implements Screen {
     public void render(float deltaTime) {
         spriteBatch.begin();
 
-        detectInput(deltaTime);
-        moveEnemies(deltaTime);
-
-        playerShip.update(deltaTime);
-        enemyShip.update(deltaTime);
-
         //Scrolling background
         renderBackground(deltaTime);
 
+        detectInput(deltaTime);
+        playerShip.update(deltaTime);
+
+        spawnEnemyShips(deltaTime);
+
         //enemy ships
-        enemyShip.draw(spriteBatch);
+        ListIterator<EnemyShip> enemyShipListIterator = enemyShipList.listIterator();
+        while (enemyShipListIterator.hasNext()) {
+            EnemyShip enemyShip = enemyShipListIterator.next();
+            moveEnemy(enemyShip, deltaTime);
+
+            enemyShip.update(deltaTime);
+            enemyShip.draw(spriteBatch);
+        }
 
         //player ships
         playerShip.draw(spriteBatch);
@@ -114,9 +127,21 @@ public class GameScreen implements Screen {
         detectCollisions();
 
         //explosions
-        renderExplosions(deltaTime);
+        updateAndRenderExplosions(deltaTime);
 
         spriteBatch.end();
+    }
+
+    private void spawnEnemyShips(float deltaTime) {
+        enemySpawnTimer += deltaTime;
+
+        if (enemySpawnTimer > timeBetweenEnemySpawns) {
+            enemyShipList.add(new EnemyShip(40, 1, TimeToFlyGame.random.nextFloat() * (WORLD_WIDTH - 10) + 5, WORLD_HEIGHT - 5,
+                10, 10, 0.3f, 4, 40, 0.8f,
+                enemyShipTextureRegion, enemyShieldTextureRegion, enemyLaserTextureRegion));
+
+            enemySpawnTimer -= timeBetweenEnemySpawns;
+        }
     }
 
     private void detectInput(float deltaTime) {
@@ -177,7 +202,7 @@ public class GameScreen implements Screen {
         }
     }
 
-    private void moveEnemies(float deltaTime) {
+    private void moveEnemy(EnemyShip enemyShip, float deltaTime) {
         float leftLimit, rightLimit, upLimit, downLimit;
 
         leftLimit = -enemyShip.boundingBox.x;
@@ -221,10 +246,12 @@ public class GameScreen implements Screen {
             }
         }
         //enemy lasers
-        if (enemyShip.canFireLasers()) {
-            Laser[] lasers = enemyShip.fireLasers();
-            for (Laser laser : lasers) {
-                enemyLaserList.add(laser);
+        ListIterator<EnemyShip> enemyShipListIterator = enemyShipList.listIterator();
+        while (enemyShipListIterator.hasNext()) {
+            EnemyShip enemyShip = enemyShipListIterator.next();
+            if (enemyShip.canFireLasers()) {
+                Laser[] lasers = enemyShip.fireLasers();
+                enemyLaserList.addAll(Arrays.asList(lasers));
             }
         }
 
@@ -251,26 +278,45 @@ public class GameScreen implements Screen {
         }
     }
 
-    private void renderExplosions(float deltaTime) {
-
+    private void updateAndRenderExplosions(float deltaTime) {
+        ListIterator<Explosion> iterator = explosionList.listIterator();
+        while (iterator.hasNext()) {
+            Explosion explosion = iterator.next();
+            explosion.update(deltaTime);
+            if (explosion.isFinished()) {
+                iterator.remove();
+            } else {
+                explosion.draw(spriteBatch);
+            }
+        }
     }
 
     private void detectCollisions() {
-        ListIterator<Laser> iterator = playerLaserList.listIterator();
-        while (iterator.hasNext()) {
-            Laser laser = iterator.next();
-            if (enemyShip.intersects(laser.boundingBox)) {
-                enemyShip.hit(laser);
-                iterator.remove();
+        ListIterator<Laser> laserListIterator = playerLaserList.listIterator();
+        while (laserListIterator.hasNext()) {
+            Laser laser = laserListIterator.next();
+            ListIterator<EnemyShip> enemyShipListIterator = enemyShipList.listIterator();
+            while (enemyShipListIterator.hasNext()) {
+                EnemyShip enemyShip = enemyShipListIterator.next();
+
+                if (enemyShip.intersects(laser.boundingBox)) {
+                    if (enemyShip.hitAndCheckDestroyed(laser)) {
+                        enemyShipListIterator.remove();
+                        explosionList.add(new Explosion(
+                            explosionTexture, new Rectangle(enemyShip.boundingBox), 0.7f));
+                    }
+                    laserListIterator.remove();
+                    break;
+                }
             }
         }
 
-        iterator = enemyLaserList.listIterator();
-        while (iterator.hasNext()) {
-            Laser laser = iterator.next();
+        laserListIterator = enemyLaserList.listIterator();
+        while (laserListIterator.hasNext()) {
+            Laser laser = laserListIterator.next();
             if (playerShip.intersects(laser.boundingBox)) {
-                playerShip.hit(laser);
-                iterator.remove();
+                playerShip.hitAndCheckDestroyed(laser);
+                laserListIterator.remove();
             }
         }
     }
