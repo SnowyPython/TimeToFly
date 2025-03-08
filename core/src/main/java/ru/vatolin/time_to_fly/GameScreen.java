@@ -81,7 +81,7 @@ public class GameScreen implements Screen {
         explosionTexture = new Texture("explosion.png");
 
         //setup game objects
-        playerShip = new PlayerShip(48, 3, WORLD_WIDTH / 2, WORLD_HEIGHT / 4,
+        playerShip = new PlayerShip(52, 3, WORLD_WIDTH / 2, WORLD_HEIGHT / 4,
             10, 10, 0.4f, 4, 45, 0.5f,
             playerShipTextureRegion, playerShieldTextureRegion, playerLaserTextureRegion);
 
@@ -136,7 +136,7 @@ public class GameScreen implements Screen {
         enemySpawnTimer += deltaTime;
 
         if (enemySpawnTimer > timeBetweenEnemySpawns) {
-            enemyShipList.add(new EnemyShip(40, 1, TimeToFlyGame.random.nextFloat() * (WORLD_WIDTH - 10) + 5, WORLD_HEIGHT - 5,
+            enemyShipList.add(new EnemyShip(40, 1, TimeToFlyGame.random.nextFloat() * (WORLD_WIDTH - 10) + 5, WORLD_HEIGHT + 5,
                 10, 10, 0.3f, 4, 40, 0.8f,
                 enemyShipTextureRegion, enemyShieldTextureRegion, enemyLaserTextureRegion));
 
@@ -151,7 +151,7 @@ public class GameScreen implements Screen {
         leftLimit = -playerShip.boundingBox.x;
         downLimit = -playerShip.boundingBox.y;
         rightLimit = WORLD_WIDTH - playerShip.boundingBox.x - playerShip.boundingBox.width;
-        upLimit = (float) WORLD_HEIGHT / 2 - playerShip.boundingBox.y - playerShip.boundingBox.height;
+        upLimit = (float) WORLD_HEIGHT * 3/4 - playerShip.boundingBox.y - playerShip.boundingBox.height;
 
         if (Gdx.input.isKeyPressed(Input.Keys.RIGHT) && rightLimit > 0) {
             playerShip.translate(Math.min(playerShip.movementSpeed * deltaTime, rightLimit), 0f);
